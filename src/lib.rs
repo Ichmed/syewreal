@@ -2,7 +2,7 @@ pub mod surreal;
 pub use surreal_macros::*;
 
 
-use surrealdb::{
+pub use surrealdb::{
     Surreal, 
     engine::remote::ws::Client, 
     opt::auth::{
