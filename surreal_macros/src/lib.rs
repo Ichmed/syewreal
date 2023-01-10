@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use surrealdb::sql::parse;
+use surrealdb::sql::{parse, Statement};
 use syn::{parse_macro_input, Data, DeriveInput, Field, Ident, __private::Span};
 
 /// Parse the sql during compile time to safely unwrap it during runtime
@@ -17,6 +17,28 @@ pub fn sqlx(item: TokenStream) -> TokenStream {
                     query
                 }
             }.into()
+        }
+    }
+}
+
+#[proc_macro]
+#[allow(non_snake_case)]
+pub fn SELECT(item: TokenStream) -> TokenStream {
+    let raw = "SELECT ".to_owned() + &item.to_string();
+    match parse(raw.as_str()) {
+        Err(err) => panic!("Syntax error: {}", err.to_string().as_str()),
+        Ok(stmt) => match stmt.to_vec().first() {
+            Some(Statement::Select(_)) => {
+                quote!{
+                    match surrealdb::sql::parse(#raw)
+                        .expect("Checked during compile time").first() {
+                            Some(Statement::Select(x)) => x.clone(),
+                            _ => panic!()
+                        }
+                }.into()
+            },
+            Some(_) => panic!("{} is not a SELECT statement", item.to_string()),
+            None => panic!("Empty statement")
         }
     }
 }

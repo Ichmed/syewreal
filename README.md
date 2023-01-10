@@ -29,7 +29,7 @@ fn MyComponent(props: &P) -> Html{
 ### Display Components
 A `SurrealList` component will retrieve all database entries matching the given query and display them one after the other (the component is called list but the rendered DOM elements can be anything not just list elements)
 
-A `SurrealComponent` will always only display the first result of the query (`LIMIT 1` may be appended to the query automatically in the future) 
+A `SurrealComponent` will always only display the first result of the query (The `LIMIT` of the query is automatically set to `1`) 
 ```rust
 html! {
     <SurrealContext token={token}>

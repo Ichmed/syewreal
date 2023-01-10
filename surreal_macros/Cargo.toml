@@ -12,4 +12,4 @@ proc_macro=true
 syn = "1.0.107"
 quote = "1.0"
 serde = {version = "1.0.145", features=["serde_derive"]}
-surrealdb = { git="https://github.com/Ichmed/surrealdb.git", default-features = false, features=["protocol-ws"] }
+surrealdb = { git="https://github.com/surrealdb/surrealdb.git", default-features = false, features=["protocol-ws"] }

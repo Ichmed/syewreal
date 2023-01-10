@@ -1,5 +1,7 @@
 use serde::{de::DeserializeOwned, ser::Serialize};
-use surrealdb::sql::Query;
+use surreal_macros::SELECT;
+use surrealdb::sql::statements::SelectStatement;
+use surrealdb::sql::{Query, Statement};
 use yew::prelude::*;
 use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::opt::auth::{Credentials, Signin};
@@ -75,9 +77,9 @@ impl SurrealToken {
 }
 
 #[hook]
-pub fn use_surreal<T>(
+pub fn use_surreal_select<T>(
     token: SurrealToken,
-    selector: impl IntoQuery,
+    selector: SelectStatement,
     parameters: Vec<(String, String)>,
 ) -> UseStateHandle<Vec<T>>
 where
@@ -92,13 +94,7 @@ where
         error,
     } = token;
 
-    let query = match selector.into_query() {
-        Ok(query) => query,
-        Err(error) => {
-            web_sys::console::error_1(&format!("{}", error).into());
-            return state;
-        }
-    };
+    let query = selector.into_query().expect("Statement can always be turned into queries");
 
     use_effect_with_deps(
         move |is_ready| {
@@ -148,6 +144,26 @@ fn format_error<Error: core::fmt::Debug>(error: Error, query: impl IntoQuery) {
 
 const NO_TOKEN_ERROR: &str = "No surreal token was set, either wrap this component or one of its parents into a <SurrealContext/>";
 
+fn unwrap_token(token: Option<SurrealToken>) -> Result<SurrealToken, Html> {    
+    match token {
+        Some(token) => Ok(token.clone()),
+        None => Err(html!(
+            <div class="error surreal-error token-error">
+                {NO_TOKEN_ERROR}
+            </div>
+        ))
+    }
+}
+
+fn construct_selector(selector: Selector) -> Result<SelectStatement, Html> {
+    match selector.base {
+        Some(x) => Ok(x.clone()),
+        None => Err(html!(
+            <div class="error surreal-error query-error">{"Empty selector"}</div>
+        ))
+    }
+}
+
 /// perform the specified query and try to deserialize the answer as Inner::Properties
 /// Then draw an Inner for the first value returned
 #[function_component]
@@ -162,22 +178,25 @@ where
     <<Inner as BaseComponent>::Properties as SurrealProp>::Local:
         Properties + SurrealLocalProp + Clone,
 {
-    let token = use_context::<SurrealToken>();
+    let token = match unwrap_token(use_context::<SurrealToken>()) {
+        Ok(x) => x,
+        Err(html) => return html
+    };
 
-    if token == None {
-        return html!(
-            <div class="surrealtoken-error">
-                {NO_TOKEN_ERROR}
-            </div>
-        );
-    }
+    let mut query = match construct_selector(props.get_selector()) {
+        Ok(x) => x,
+        Err(html) => return html
+    };
 
-    let token = token.unwrap().clone();
+    query.limit = Some(surrealdb::sql::Limit(1.into()));
 
-    let inner_props = use_surreal::<<Inner::Properties as SurrealProp>::Remote>(
+    let inner_props = use_surreal_select::<<Inner::Properties as SurrealProp>::Remote>(
         token,
-        props.get_selector(),
-        props.get_parameters().params.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        query,
+        props.get_parameters()
+            .params.iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
     );
 
     html! {for inner_props.first()
@@ -204,22 +223,23 @@ where
     <<Inner as BaseComponent>::Properties as SurrealProp>::Local:
         Properties + SurrealLocalProp + Clone,
 {
-    let token = use_context::<SurrealToken>();
+    let token = match unwrap_token(use_context::<SurrealToken>()) {
+        Ok(token) => token,
+        Err(html) => return html
+    };
+    
+    let query = match construct_selector(props.get_selector()) {
+        Ok(x) => x,
+        Err(html) => return html
+    };
 
-    if token == None {
-        return html!(
-            <div class="surrealtoken-error">
-                {NO_TOKEN_ERROR}
-            </div>
-        );
-    }
-
-    let token = token.unwrap().clone();
-
-    let inner_props = use_surreal::<<Inner::Properties as SurrealProp>::Remote>(
+    let inner_props = use_surreal_select::<<Inner::Properties as SurrealProp>::Remote>(
         token,
-        props.get_selector(),
-        props.get_parameters().params.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        query,
+        props.get_parameters()
+            .params.iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
     );
 
     html! {for inner_props.iter()
@@ -250,48 +270,56 @@ pub trait SurrealLocalProp {
 
 #[derive(Clone, PartialEq)]
 pub struct Selector {
-    base: Vec<surrealdb::sql::Statement>,
+    base: Option<SelectStatement>,
+}
+
+impl From<Vec<Statement>> for Selector {
+    fn from(value: Vec<Statement>) -> Self {
+        Self {
+            base: match value.first() {
+                Some(Statement::Select(x)) => Some(x.clone()),
+                _ => None
+            }
+        }
+    }
 }
 
 
 impl IntoQuery for Selector {
     fn into_query(self) -> surrealdb::Result<Vec<surrealdb::sql::Statement>> {
-        Result::Ok(self.base)
+        match self.base {
+            Some(x) => x.into_query(),
+            None => Ok(vec![])
+        }
     }
 }
 impl IntoPropValue<Selector> for Query {
     fn into_prop_value(self) -> Selector {
-        Selector { base: self.0.to_vec() }
+        self.0.to_vec().into()
     }
 }
 
 impl IntoPropValue<Selector> for &str {
     fn into_prop_value(self) -> Selector {
-        Selector {
-            base: self.into_query().unwrap(),
-        }
+        self.into_query().unwrap().into()
     }
 }
 
 impl IntoPropValue<Selector> for String {
     fn into_prop_value(self) -> Selector {
-        Selector {
-            base: self.into_query().unwrap(),
-        }
+        self.into_query().unwrap().into()
     }
 }
 
 impl IntoPropValue<Selector> for surrealdb::Result<Vec<surrealdb::sql::Statement>> {
     fn into_prop_value(self) -> Selector {
-        Selector {
-            base: self.unwrap(),
-        }
+        self.unwrap().into()
     }
 }
 
 impl IntoPropValue<Selector> for Vec<surrealdb::sql::Statement> {
     fn into_prop_value(self) -> Selector {
-        Selector { base: self }
+        self.into()
     }
 }
 

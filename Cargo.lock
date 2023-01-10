@@ -1639,7 +1639,7 @@ dependencies = [
 [[package]]
 name = "surrealdb"
 version = "1.0.0-beta.8"
-source = "git+https://github.com/Ichmed/surrealdb.git#d8db42fe21d59858d5549252d5dbea599fd0ba86"
+source = "git+https://github.com/surrealdb/surrealdb.git#db4ac267c2e40f84377d95be242a3a55094e7ecf"
 dependencies = [
  "addr",
  "argon2",
@@ -1865,9 +1865,9 @@ dependencies = [
 
 [[package]]
 name = "trice"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27a3a110aba3d0ffc4dac3eedbce006dce1a3db5b484c94313940b999c9409ef"
+checksum = "6fd6accd04d9bcc587c77f2df66cddaba0d4247dcdf9127c74e3c7a461568132"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
