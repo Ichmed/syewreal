@@ -1632,65 +1632,14 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "serde",
- "surrealdb 1.0.0-beta.8 (git+https://github.com/Ichmed/surrealdb.git)",
+ "surrealdb",
  "syn",
 ]
 
 [[package]]
 name = "surrealdb"
 version = "1.0.0-beta.8"
-source = "git+https://github.com/Ichmed/surrealdb.git#929486a90ec35c38674748b7b7c140fa8512487d"
-dependencies = [
- "addr",
- "argon2",
- "async-channel",
- "async-executor",
- "async-recursion",
- "bcrypt",
- "bigdecimal",
- "chrono",
- "deunicode",
- "dmp",
- "flume",
- "futures",
- "futures-concurrency",
- "fuzzy-matcher",
- "geo",
- "indexmap",
- "lexical-sort",
- "log",
- "md-5",
- "nanoid",
- "nom",
- "once_cell",
- "pbkdf2",
- "pharos",
- "rand",
- "regex",
- "rmp-serde",
- "scrypt",
- "semver",
- "serde",
- "serde_json",
- "sha-1",
- "sha2",
- "storekey",
- "surrealdb-derive",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tokio-tungstenite",
- "trice",
- "url",
- "uuid",
- "wasm-bindgen-futures",
- "ws_stream_wasm",
-]
-
-[[package]]
-name = "surrealdb"
-version = "1.0.0-beta.8"
-source = "git+https://github.com/surrealdb/surrealdb.git#af88fcef381a64e355b11f2cd132e04b92bd620a"
+source = "git+https://github.com/Ichmed/surrealdb.git#39abf9aab3d9595ae59ee99400b84ed26ae67514"
 dependencies = [
  "addr",
  "argon2",
@@ -1754,7 +1703,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "surreal_macros",
- "surrealdb 1.0.0-beta.8 (git+https://github.com/surrealdb/surrealdb.git)",
+ "surrealdb",
  "url",
  "wasm-bindgen-futures",
  "web-sys",
