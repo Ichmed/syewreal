@@ -126,12 +126,16 @@ where
             .collect(),
     )?;
 
-    Ok(html! {for inner_props.iter()
-        .map(|remote| Inner::Properties::construct(
-            remote.clone(),
-            props.clone()
-        ))
-        .map(|prop| html!{<Inner ..prop/>})
+    Ok(html! {
+        <>
+            <span>{format!("{:?}", props.get_selector())}</span>
+            {for inner_props.iter()
+            .map(|remote| Inner::Properties::construct(
+                remote.clone(),
+                props.clone()
+            ))
+            .map(|prop| html!{<Inner ..prop/>})}
+        </>
     })
 }
 
@@ -149,7 +153,7 @@ pub trait SurrealLocalProp {
     fn get_parameters(&self) -> Parameters;
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Selector {
     base: Option<SelectStatement>,
 }
@@ -262,8 +266,7 @@ pub fn surreal_context(props: &SurrealContextProps) -> Html {
         }
     }
     else {
-        html! {
-        }
+        fallback
     }
     
 }
