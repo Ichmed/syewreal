@@ -1,58 +1,18 @@
 use serde::{de::DeserializeOwned, ser::Serialize};
-use surreal_macros::SELECT;
 use surrealdb::sql::statements::SelectStatement;
 use surrealdb::sql::{Query, Statement};
 use yew::prelude::*;
-use surrealdb::engine::remote::ws::{Client, Ws};
-use surrealdb::opt::auth::{Credentials, Signin};
+use surrealdb::engine::remote::ws::Client;
 use surrealdb::opt::IntoQuery;
 use surrealdb::Surreal;
 use yew::html::IntoPropValue;
 use yew::{
-    function_component, hook, html, use_effect_with_deps, use_state, AttrValue, BaseComponent,
+    function_component, html, AttrValue, BaseComponent,
     Html, Properties, UseStateHandle,
 };
 
-#[hook]
-pub fn use_surreal_login<T>(
-    client: &'static Surreal<Client>,
-    url: String,
-    login: impl Credentials<Signin, T> + 'static,
-) -> SurrealToken
-where
-    surrealdb::method::Signin<'static, Client, T>:
-        std::future::IntoFuture<Output = surrealdb::Result<T>>,
-{
-    let ready = use_state(|| false);
-    let error = use_state(|| None);
+use crate::hooks::use_surreal_select;
 
-    let ready_clone = ready.clone();
-    let error_clone = error.clone();
-    use_effect_with_deps(
-        move |_| {
-            wasm_bindgen_futures::spawn_local(async move {
-                match client.connect::<Ws>(url).with_capacity(100000).await {
-                    surrealdb::Result::Ok(_) => match client.signin(login).await {
-                        surrealdb::Result::Ok(_) => { 
-                            // TMP for development don't log in as root please
-                            client.use_ns("test").use_db("test").await;
-                            ready_clone.set(true);
-                        }
-                        surrealdb::Result::Err(err) => error_clone.set(Some(err)),
-                    },
-                    surrealdb::Result::Err(err) => error_clone.set(Some(err)),
-                }
-            });
-        },
-        (),
-    );
-
-    SurrealToken {
-        client,
-        ready,
-        error,
-    }
-}
 
 #[derive(Clone)]
 pub struct SurrealToken {
@@ -76,71 +36,6 @@ impl SurrealToken {
     }
 }
 
-#[hook]
-pub fn use_surreal_select<T>(
-    token: SurrealToken,
-    selector: SelectStatement,
-    parameters: Vec<(String, String)>,
-) -> UseStateHandle<Vec<T>>
-where
-    T: 'static + Send + Sync + DeserializeOwned + Serialize,
-{
-    let state = use_state(|| Vec::new());
-    let state_clone = state.clone();
-
-    let SurrealToken {
-        client,
-        ready,
-        error,
-    } = token;
-
-    let query = selector.into_query().expect("Statement can always be turned into queries");
-
-    use_effect_with_deps(
-        move |is_ready| {
-            if **is_ready && error.is_none() {
-                wasm_bindgen_futures::spawn_local(async move {
-                    let mut q = client.query(query.clone());
-                    for param in parameters {
-                        q = q.bind(param);
-                    }
-
-                    match q.await {
-                        Ok(mut r) => {
-                            let list: surrealdb::Result<Vec<T>> = r.take(0);
-                            match list {
-                                Ok(result) => {
-                                    web_sys::console::log_1(
-                                        &format!("fetched {} items", result.len()).into(),
-                                    );
-                                    state_clone.set(result);
-                                }
-                                Err(error) => {
-                                    format_error(error, query);
-                                }
-                            }
-                        }
-                        Err(error) => format_error(error, query),
-                    }
-                });
-            }
-        },
-        ready,
-    );
-
-    state
-}
-
-fn format_error<Error: core::fmt::Debug>(error: Error, query: impl IntoQuery) {
-    web_sys::console::error_1(
-        &format!(
-            "Error \"{:?}\"\nwhile performing query \"{:?}\"",
-            error,
-            query.into_query()
-        )
-        .into(),
-    );
-}
 
 const NO_TOKEN_ERROR: &str = "No surreal token was set, either wrap this component or one of its parents into a <SurrealContext/>";
 
@@ -169,7 +64,7 @@ fn construct_selector(selector: Selector) -> Result<SelectStatement, Html> {
 #[function_component]
 pub fn SurrealComponent<Inner>(
     props: &<<Inner as BaseComponent>::Properties as SurrealProp>::Local,
-) -> Html
+) -> HtmlResult
 where
     Inner: BaseComponent,
     <Inner as BaseComponent>::Properties: PartialEq + SurrealProp + 'static + Clone,
@@ -178,34 +73,28 @@ where
     <<Inner as BaseComponent>::Properties as SurrealProp>::Local:
         Properties + SurrealLocalProp + Clone,
 {
-    let token = match unwrap_token(use_context::<SurrealToken>()) {
-        Ok(x) => x,
-        Err(html) => return html
-    };
-
     let mut query = match construct_selector(props.get_selector()) {
         Ok(x) => x,
-        Err(html) => return html
+        Err(html) => return Ok(html)
     };
 
     query.limit = Some(surrealdb::sql::Limit(1.into()));
 
     let inner_props = use_surreal_select::<<Inner::Properties as SurrealProp>::Remote>(
-        token,
         query,
         props.get_parameters()
             .params.iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect(),
-    );
+    )?;
 
-    html! {for inner_props.first()
+    Ok(html! {for inner_props.iter()
         .map(|remote| Inner::Properties::construct(
             remote.clone(),
             props.clone()
         ))
         .map(|prop| html!{<Inner ..prop/>})
-    }
+    })
 }
 
 
@@ -214,7 +103,7 @@ where
 #[function_component]
 pub fn SurrealList<Inner>(
     props: &<<Inner as BaseComponent>::Properties as SurrealProp>::Local,
-) -> Html
+) -> HtmlResult
 where
     Inner: BaseComponent,
     <Inner as BaseComponent>::Properties: PartialEq + SurrealProp + 'static + Clone,
@@ -223,35 +112,27 @@ where
     <<Inner as BaseComponent>::Properties as SurrealProp>::Local:
         Properties + SurrealLocalProp + Clone,
 {
-    let token = match unwrap_token(use_context::<SurrealToken>()) {
-        Ok(token) => token,
-        Err(html) => return html
-    };
-    
     let query = match construct_selector(props.get_selector()) {
         Ok(x) => x,
-        Err(html) => return html
+        Err(html) => return Ok(html)
     };
 
+
     let inner_props = use_surreal_select::<<Inner::Properties as SurrealProp>::Remote>(
-        token,
         query,
         props.get_parameters()
             .params.iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect(),
-    );
+    )?;
 
-    html! {for inner_props.iter()
+    Ok(html! {for inner_props.iter()
         .map(|remote| Inner::Properties::construct(
             remote.clone(),
             props.clone()
         ))
-        .map(|prop| match prop.get_id() {
-            Some(id) => html!{<Inner key={id.to_string()} ..prop/>},
-            None => html!{<Inner ..prop/>}
-        })
-    }
+        .map(|prop| html!{<Inner ..prop/>})
+    })
 }
 
 pub trait SurrealProp: Properties {

@@ -1,13 +1,6 @@
 pub mod surreal;
+pub mod hooks;
 pub use surreal_macros::*;
 
-
-pub use surrealdb::{
-    Surreal, 
-    engine::remote::ws::Client, 
-    opt::auth::{
-        Root,
-        Database
-    }, 
-    sql::statements::SelectStatement};
-
+pub type Client = surrealdb::Surreal<surrealdb::engine::remote::ws::Client>;
+pub type Login<'a> = surrealdb::opt::auth::Database<'a>;
