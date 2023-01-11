@@ -88,6 +88,10 @@ where
     T: 'static + Send + Sync + DeserializeOwned + Serialize + Clone,
 {
     let state = use_state(|| Option::<Vec<T>>::None);
+    let state_clone = state.clone();
+
+    use_effect_with_deps(move |_| state_clone.set(None), (selector.clone(), parameters.clone()));
+
     // let state_clone = state.clone();
     
     let token = match use_context::<SurrealToken>() {
