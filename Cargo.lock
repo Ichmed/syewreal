@@ -1639,7 +1639,7 @@ dependencies = [
 [[package]]
 name = "surrealdb"
 version = "1.0.0-beta.8"
-source = "git+https://github.com/Ichmed/surrealdb.git#c2b459404af650b3578c489e0c690f99166ede85"
+source = "git+https://github.com/Ichmed/surrealdb.git#929486a90ec35c38674748b7b7c140fa8512487d"
 dependencies = [
  "addr",
  "argon2",
