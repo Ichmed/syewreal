@@ -4,7 +4,7 @@
 ```rust
 static CLIENT: Client = Client::init();
 ```
-To connect to a database use the `use_surreal_login` hook. The hook return a token that has to be used in a `<SurrealContext/>` context provider.
+To connect to a database use the `use_surreal_login` hook. The hook returns a token that has to be used in a `<SurrealContext/>` context provider.
 ```rust
 #[function_component]
 fn MyComponent(props: &P) -> Html{
@@ -36,7 +36,7 @@ html! {
     </SurrealContext>
 }
 ```
-`<Query<T>/>` has two parameters
+`<Query<T>/>` has three parameters
 - `selector`: Something that can be turned into a `SelectStatement`, this includes `String`s and surreal records (`Thing`s in the surreal source code)
 - `parameters`: a Vec of `(String, String)` touples that will be bound to the query
 - `filter`: a yew callback `Fn(T::Properties) -> bool` used for local filtering.
@@ -86,6 +86,7 @@ They will need to be set on the Wrapper Component and apply to all `Inner` compo
 ### ForeignKeys
 There are two ways to deal with foreign keys:
 A) Use a property of type `ForeignKey` (this is just an alias of `ID` but more readable)
+
 B) Use a property of type `StaticChild<T>` where `T` is a deserializable struct. This allows for the data to be retrieved in one go with the `FETCH` keyword but will only write the id of the fetched data to surreal when updated/created
 
 
