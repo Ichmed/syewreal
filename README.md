@@ -43,7 +43,7 @@ html! {
 
 `<Query/>` stores the result of the query in an internally managed state. If you want to manipulat the state or use the same query result in multiple places you will have to use `<QueryWithState/>` in combination with the `use_query_state` hook
 ```rust
-let list_state = use_query_state::<ToDoItemProps>("SELECT * FROM item FETCH img");
+let list_state = use_query_state::<ToDoItemProps>("SELECT * FROM item");
 html!{
     <QueryWithState<ToDoItem> state={list_state}/>
 }
@@ -82,6 +82,12 @@ They will need to be set on the Wrapper Component and apply to all `Inner` compo
 ```rust
 <SurrealList<Inner> selector="select * from myTable" color="red"/>
 ```
+
+### ForeignKeys
+There are two ways to deal with foreign keys:
+A) Use a property of type `ForeignKey` (this is just an alias of `ID` but more readable)
+B) Use a property of type `StaticChild<T>` where `T` is a deserializable struct. This allows for the data to be retrieved in one go with the `FETCH` keyword but will only write the id of the fetched data to surreal when updated/created
+
 
 ## "Raw" Database access
 Instead of rendering Components directly with a `<Query/>` you can use the `use_surreal()` hook to:
