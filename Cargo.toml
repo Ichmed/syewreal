@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 target="wasm32-unknown-unknown"
 
+[features]
+log_traffic=[]
+panic_on_error=[]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -15,3 +19,5 @@ url = "2.3.1"
 web-sys = "0.3.60"
 surrealdb = { git="https://github.com/Ichmed/surrealdb.git", default-features = false, features=["protocol-ws"] }
 surreal_macros = {path = "surreal_macros"}
+serde_json = "1.0.91"
+trice = {git="https://github.com/surrealdb/trice.git"}

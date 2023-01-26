@@ -43,8 +43,8 @@ pub fn SELECT(item: TokenStream) -> TokenStream {
     }
 }
 
-#[proc_macro_derive(SurrealProp, attributes(local, selector, id))]
-pub fn derive_surreal_prop(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(SurrealProps, attributes(local, selector, id))]
+pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     if let Data::Struct(data) = input.data {
@@ -59,12 +59,12 @@ pub fn derive_surreal_prop(input: TokenStream) -> TokenStream {
 
         let selector_field_priv = match selector_field_pub {
             Some(t) => quote!(#t),
-            None => quote!(selector: syewreal::surreal::Selector),
+            None => quote!(selector: syewreal::props::selector::Selector),
         };
 
         let selector_construction = match &selector_ident_pub {
             Some(Some(t)) => {
-                quote!(yew::html::IntoPropValue::<syewreal::surreal::Selector>::into_prop_value(self.#t.clone()))
+                quote!(yew::html::IntoPropValue::<syewreal::props::selector::Selector>::into_prop_value(self.#t.clone()))
             }
             _ => quote!(self.selector.clone()),
         };
@@ -74,18 +74,30 @@ pub fn derive_surreal_prop(input: TokenStream) -> TokenStream {
             quote!(#x: local.#x,)
         });
 
+        let remote_name = create_ident(&name, "Remote");
+        let local_name = create_ident(&name, "Local");
+        let local_with_state_name = create_ident(&name, "LocalWithState");
+        
         // Get the 'id' field used for keying lists
         let (id, rest) = find_optional_field(rest, "id");
 
-        let id_getter = if let Some(id_field) = id.clone() {
-            let id_ident = id_field.ident;
+        let id_getter = id.clone().map(|field| {
+            let id_ident = field.ident;
 
             quote! {
-                Some(self.#id_ident.clone())
+                impl syewreal::props::id::HasID for #name {
+                    fn id(&self) -> syewreal::props::id::ID {
+                        self.#id_ident.as_ref().unwrap().clone()
+                    }
+                }
+                
+                impl syewreal::props::id::HasID for #remote_name {
+                    fn id(&self) -> syewreal::props::id::ID {
+                        self.#id_ident.as_ref().unwrap().clone()
+                    }
+                }
             }
-        } else {
-            quote!(None)
-        };
+        });
 
         let (attrs, rest) = extract_by_type(rest, "AttrValue");
         let attr_idents = attrs
@@ -101,15 +113,14 @@ pub fn derive_surreal_prop(input: TokenStream) -> TokenStream {
 
         let remote_data = rest;
 
-        let remote_name = create_ident(&name, "Remote");
-        let local_name = create_ident(&name, "Local");
 
         let local_idents = get_idents(&local_data);
         let remote_idents = get_idents(&remote_data);
 
         let expanded = quote! {
 
-            #[derive(serde::Deserialize, serde::Serialize, Clone)]
+
+            #[derive(serde::Deserialize, serde::Serialize, Clone, PartialEq)]
             struct #remote_name {
                 #(#remote_data,)*
                 #(#attr_idents: String,)*
@@ -119,22 +130,35 @@ pub fn derive_surreal_prop(input: TokenStream) -> TokenStream {
             #[derive(Clone, yew::Properties, PartialEq)]
             struct #local_name {
                 #(#local_data,)*
-                // #token_field_priv,
                 #selector_field_priv,
                 #[prop_or_default]
-                parameters: syewreal::surreal::Parameters,
+                parameters: syewreal::props::selector::Parameters,
+                #[prop_or_default]
+                filter: Option<yew::Callback<#remote_name, bool>>,
             }
 
-            impl syewreal::surreal::SurrealProp for #name {
+            #[derive(Clone, yew::Properties, PartialEq)]
+            struct #local_with_state_name {
+                #(#local_data,)*
+                #[prop_or_default]
+                parameters: syewreal::props::selector::Parameters,
+                #[prop_or_default]
+                filter: Option<yew::Callback<#remote_name, bool>>,
+                state: syewreal::hooks::QueryState<#remote_name>,
+            }
+
+
+            impl syewreal::SurrealProps for #name {
                 type Remote = #remote_name;
                 type Local = #local_name;
+                type LocalWithState = #local_with_state_name;
 
                 fn construct(
                     remote: Self::Remote,
-                    local: Self::Local
+                    local: Self::LocalWithState
                 ) -> Self {
                     Self {
-                        #(#remote_idents : remote.#remote_idents,)*
+                        #(#remote_idents : remote.#remote_idents.clone(),)*
 
                         // Convert Strings into AttrValues
                         #(#attr_idents: remote.#attr_idents.into(),)*
@@ -148,23 +172,44 @@ pub fn derive_surreal_prop(input: TokenStream) -> TokenStream {
                     }
                 }
 
-                fn get_id(&self) -> Option<AttrValue> {
-                    #id_getter
+                fn get_remote(&self) -> Self::Remote {
+                    Self::Remote {
+                        #(#remote_idents : self.#remote_idents.clone(),)*
+                        #(#attr_idents: self.#attr_idents.as_str().to_owned(),)*
+                        #(#opt_attr_idents: self.#opt_attr_idents.as_ref().map(|x| x.as_str().to_owned()),)*
+                    }
                 }
+
             }
 
-            impl syewreal::surreal::SurrealLocalProp for #local_name {
-
-                // fn get_token(&self) -> &SurrealToken {
-                //     #token_construction
-                // }
-
-                fn get_selector(&self) -> syewreal::surreal::Selector {
-                    #selector_construction
+            #id_getter
+            
+            impl syewreal::props::surreal_props::PropsNoState<#remote_name, #local_with_state_name> for #local_name {
+                fn with_state(&self, state: syewreal::hooks::QueryState<#remote_name>) -> #local_with_state_name {
+                    #local_with_state_name {
+                        #(#local_idents : self.#local_idents.clone(),)*
+                        parameters: self.parameters.clone(),
+                        filter: self.filter.clone(),
+                        state: state.clone()
+                    }
                 }
 
-                fn get_parameters(&self) -> syewreal::surreal::Parameters {
+                fn get_selector(&self) -> syewreal::props::selector::Selector {
+                    #selector_construction
+                }
+            }
+            
+            impl syewreal::props::surreal_props::PropsWithState<#remote_name> for #local_with_state_name {
+                fn get_state(&self) -> syewreal::hooks::QueryState<#remote_name> {
+                    self.state.clone()
+                }
+
+                fn get_parameters(&self) -> syewreal::props::selector::Parameters {
                     self.parameters.clone()
+                }
+
+                fn get_filter(&self) -> Option<yew::Callback<#remote_name, bool>> {
+                    self.filter.clone()
                 }
             }
         };

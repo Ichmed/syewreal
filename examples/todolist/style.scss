@@ -1,0 +1,81 @@
+.item-area {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+.todo-item {
+
+    margin: 15px;
+    // padding: 15px;
+    overflow: hidden;
+    border: 1px solid black;
+    border-radius: 10px;
+    width: 200px;
+    min-height: 200px;
+    position: relative;
+
+    h3 {
+        margin-bottom: 0;
+        margin-left: 15;
+        margin-right: 15;
+        text-align: center;
+    }
+
+    .surreal-id {
+        font-size: x-small;
+        font-family: monospace;
+        text-align: center;
+    }
+
+    * {
+        padding: 10px;
+    }
+
+    p {
+        padding: 0px;
+    }
+    
+    .done-area {
+        padding: 0px;
+        padding-top: 25px;
+        height: 30px;
+        text-align: center;
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        background-image: linear-gradient(0deg, black, transparent);
+
+        input {
+            height: 50%;
+            width: 50%;
+            border-radius: 50%;
+
+            &:checked {
+                color: gray;
+            }
+        }
+
+        // background-color: dodgerblue;
+
+        &:has(input:checked) {
+            background-color: gray;
+        }
+        
+    }
+
+    img {
+        position: absolute;
+        opacity: 50%;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        z-index: -1;
+    }
+
+}
+button {
+    width: 100%;
+}
