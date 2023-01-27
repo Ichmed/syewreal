@@ -4,6 +4,7 @@ use serde::de::DeserializeOwned;
 // use yew::hook;
 use yew::UseStateHandle;
 use yew::html::IntoPropValue;
+use yew::suspense::SuspensionResult;
 use yew::use_state_eq;
 
 use crate::logging;
@@ -25,6 +26,8 @@ where
     'arg0: 'hook,
     Props: 'hook,
 {
+    use yew::{suspense::Suspension, use_effect_with_deps};
+
     fn inner_fn<'hook, 'arg0, Props>(
         _ctx: &mut ::yew::functional::HookContext,
         selector: impl 'arg0 + IntoPropValue<Selector>,
@@ -36,16 +39,21 @@ where
         Props: 'hook,
     {
         let sur = ::yew::functional::Hook::run(use_surreal(), _ctx);
-        let state: UseStateHandle<Option<Vec<<Props as SurrealProps>::Remote>>> =
-            ::yew::functional::Hook::run(use_state_eq(|| None), _ctx);
+        let state: UseStateHandle<SuspensionResult<Vec<<Props as SurrealProps>::Remote>>> =
+            ::yew::functional::Hook::run(use_state_eq(|| Err(Suspension::new().0)), _ctx);
         let selector = selector.into_prop_value();
+        let state_inner = state.clone();
         {
+            let selector = selector.clone();
             let state = state.clone();
-            sur.query(selector.clone())
-            .then(move |mut response| match response.take(0) {
-                Ok(data) => state.set(Some(data)),
-                Err(error) => logging::handle_error(error),
-            });
+            ::yew::functional::Hook::run(use_effect_with_deps(move |_| {
+                state.set(Err(
+                    sur.query(selector.clone())
+                        .then(move |mut response| match response.take(0) {
+                            Ok(data) => state_inner.set(Ok(data)),
+                            Err(error) => logging::handle_error(error),
+                })));
+            }, ()), _ctx);
         }
         QueryState::<Props::Remote> { state: state, selector }
     }
@@ -79,7 +87,7 @@ where
 
 #[derive(Clone, PartialEq)]
 pub struct QueryState<Remote> {
-    state: UseStateHandle<Option<Vec<Remote>>>,
+    state: UseStateHandle<SuspensionResult<Vec<Remote>>>,
     selector: Selector
 }
 
@@ -87,26 +95,22 @@ impl<Remote> QueryState<Remote>
 where
     Remote: Clone,
 {
-    pub fn is_initialized(&self) -> bool {
-        self.state.is_some()
-    }
-
-    pub fn get_data(&self) -> Option<Vec<Remote>> {
+    pub fn get_data(&self) -> SuspensionResult<Vec<Remote>> {
         (*self.state).clone()
     }
 
     /// Return the internal data if any exists or an empty Vec<Remote> otherwise
     pub fn get_list(&self) -> Vec<Remote> {
         match &*self.state {
-            Some(data) => data.clone(),
-            None => vec![],
+            Ok(data) => data.clone(),
+            Err(_) => vec![],
         }
     }
 
     pub fn append(&self, data: Remote) {
         let mut existing = self.get_list();
         existing.push(data);
-        self.state.set(Some(existing));
+        self.state.set(Ok(existing));
     }
 
     pub fn set_target(&self, index: usize, data: Option<Remote>) {
@@ -129,7 +133,7 @@ where
 }
 
 impl<Remote> Deref for QueryState<Remote> {
-    type Target = UseStateHandle<Option<Vec<Remote>>>;
+    type Target = UseStateHandle<SuspensionResult<Vec<Remote>>>;
     fn deref(&self) -> &Self::Target {
         &self.state
     }

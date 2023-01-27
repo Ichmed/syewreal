@@ -43,7 +43,7 @@ pub fn SELECT(item: TokenStream) -> TokenStream {
     }
 }
 
-#[proc_macro_derive(SurrealProps, attributes(local, selector, id))]
+#[proc_macro_derive(SurrealProps, attributes(local, fallback, id))]
 pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -54,25 +54,6 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
 
         let (local_data, rest) = extract_attr(fields, "local");
 
-        let (selector_field_pub, rest) = extract_required_field(rest, "selector");
-        let selector_ident_pub = selector_field_pub.as_ref().map(|x| x.ident.clone());
-
-        let selector_field_priv = match selector_field_pub {
-            Some(t) => quote!(#t),
-            None => quote!(selector: syewreal::props::selector::Selector),
-        };
-
-        let selector_construction = match &selector_ident_pub {
-            Some(Some(t)) => {
-                quote!(yew::html::IntoPropValue::<syewreal::props::selector::Selector>::into_prop_value(self.#t.clone()))
-            }
-            _ => quote!(self.selector.clone()),
-        };
-
-        let selector_assignment = &selector_ident_pub.map(|x| {
-            let x = x.unwrap();
-            quote!(#x: local.#x,)
-        });
 
         let remote_name = create_ident(&name, "Remote");
         let local_name = create_ident(&name, "Local");
@@ -96,6 +77,30 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                         self.#id_ident.as_ref().unwrap().clone()
                     }
                 }
+            }
+        });
+
+        let (fallback, rest) = extract_optional_field(rest, "fallback");
+        let fallback_ident = fallback.as_ref().map(|field| field.ident.clone());
+
+        let fallback_getter = fallback_ident.clone().map(|field| {
+
+            quote! {
+                fn get_fallback(&self) -> Option<yew::Html> {
+                    Some(self.#field.clone())
+                }
+            }
+        });
+
+        let fallback_construct_assignment = fallback_ident.clone().map(|field| {
+            quote!{
+                #field: local.#field.clone(),
+            }
+        });
+        
+        let fallback_state_assignment = fallback_ident.clone().map(|field| {
+            quote!{
+                #field: self.#field.clone(),
             }
         });
 
@@ -130,11 +135,12 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
             #[derive(Clone, yew::Properties, PartialEq)]
             struct #local_name {
                 #(#local_data,)*
-                #selector_field_priv,
+                selector: syewreal::props::selector::Selector,
                 #[prop_or_default]
                 parameters: syewreal::props::selector::Parameters,
                 #[prop_or_default]
                 filter: Option<yew::Callback<#name, bool>>,
+                #fallback
             }
 
             #[derive(Clone, yew::Properties, PartialEq)]
@@ -145,6 +151,7 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                 #[prop_or_default]
                 filter: Option<yew::Callback<#name, bool>>,
                 state: syewreal::hooks::QueryState<#remote_name>,
+                #fallback
             }
 
 
@@ -165,10 +172,7 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                         #(#opt_attr_idents: remote.#opt_attr_idents.map(AttrValue::from),)*
 
                         #(#local_idents : local.#local_idents,)*
-
-                        // #token_assignment
-
-                        #selector_assignment
+                        #fallback_construct_assignment
                     }
                 }
 
@@ -190,12 +194,13 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                         #(#local_idents : self.#local_idents.clone(),)*
                         parameters: self.parameters.clone(),
                         filter: self.filter.clone(),
+                        #fallback_state_assignment
                         state: state.clone()
                     }
                 }
 
                 fn get_selector(&self) -> syewreal::props::selector::Selector {
-                    #selector_construction
+                    self.selector.clone()
                 }
             }
             
@@ -211,6 +216,8 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                 fn get_filter(&self) -> Option<yew::Callback<#name, bool>> {
                     self.filter.clone()
                 }
+
+                #fallback_getter
             }
         };
 
@@ -248,7 +255,7 @@ fn find_optional_field(fields: Vec<Field>, attr_name: &str) -> (Option<Field>, V
     (req.first().cloned(), [req, rest].concat())
 }
 
-fn extract_required_field(fields: Vec<Field>, attr_name: &str) -> (Option<Field>, Vec<Field>) {
+fn extract_optional_field(fields: Vec<Field>, attr_name: &str) -> (Option<Field>, Vec<Field>) {
     let (req, rest) = extract_attr(fields, attr_name);
 
     if req.len() > 1 {

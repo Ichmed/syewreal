@@ -19,7 +19,9 @@ struct ToDoItemProps {
     title: AttrValue,
     text: Option<AttrValue>,
     done: bool,
-    img: Option<StaticChild<Img>>
+    img: Option<StaticChild<Img>>,
+    #[fallback]
+    fallback: Html
 }
 
 #[derive(Deserialize, Serialize, Clone, PartialEq)]
@@ -120,6 +122,8 @@ fn home(_: &()) -> Html {
     //     false => Some(Callback::from(|d: ToDoItemPropsRemote| !d.done))
     // }.to_owned();
 
+    let fallback = html!(<span>{"Loading ToDo Items"}</span>);
+
     html! {
         <>
         // {format!("{:?}", token.error.clone())}
@@ -128,7 +132,7 @@ fn home(_: &()) -> Html {
                 <input onclick={show_done_handle} type="checkbox" checked={*show_done}/>
             </div>
             <div class="item-area">
-                <QueryWithState<ToDoItem> filter={filter} state={list_state}/>
+                <QueryWithState<ToDoItem> state={list_state} {filter} {fallback}/>
             </div>
             <button {onclick}>{"+"}</button>
         </>

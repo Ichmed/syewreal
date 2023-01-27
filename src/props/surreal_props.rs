@@ -1,4 +1,4 @@
-use yew::{Properties, Callback};
+use yew::{Properties, Callback, Html};
 
 use crate::hooks::QueryState;
 
@@ -23,4 +23,7 @@ pub trait PropsWithState<Full, Remote> {
     fn get_parameters(&self) -> Parameters;
     fn get_state(&self) -> QueryState<Remote>;
     fn get_filter(&self) -> Option<Callback<Full, bool>>;
+    fn get_fallback(&self) -> Option<Html> {
+        None
+    }
 }

@@ -11,7 +11,7 @@ use surrealdb::{
     sql::{statements::SelectStatement, Value, Values},
     Connection, Response, Result, Surreal,
 };
-use yew::{hook, use_context, UseStateHandle};
+use yew::{hook, use_context, UseStateHandle, suspense::Suspension};
 
 use crate::{props::id::HasID, props::surreal_props::SurrealProps, logging::{handle_error, self}};
 
@@ -59,7 +59,7 @@ impl SurrealToken {
 
         self.ready.set(false);
 
-        wasm_bindgen_futures::spawn_local(async move {
+        Suspension::from_future(async move {
             match client.connect::<Ws>(url).with_capacity(100000).await {
                 surrealdb::Result::Ok(()) => match client.signin(credentials).await {
                     surrealdb::Result::Ok(_) => {
@@ -109,7 +109,7 @@ where
     /// Send the given data to the DB and update the local data if the new data still matches the original query
     ///
     /// Always uses MERGE because R may not include all fields of the underlying data
-    pub fn with(self, data: R) {
+    pub fn with(self, data: R) -> Suspension {
         if let Ok(mut query) = TryInto::<SelectStatement>::try_into(self.1.state.get_selector()) {
             let id = (*data.id()).clone();
 
@@ -117,7 +117,7 @@ where
 
             logging::print_traffic(logging::Direction::Send, &data.get_remote());
 
-            wasm_bindgen_futures::spawn_local(async move {
+            Suspension::from_future(async move {
                 match self
                     .0
                     .client
@@ -136,21 +136,23 @@ where
                     },
                     Err(error) => handle_error(error),
                 };
-            });
+            })
+        } else {
+            Suspension::new().0
         }
     }
 
-    /// Retrieve the current data from the DB and update this component if needed
-    pub fn refresh(self) {
-        self.0.select((*self.1.id).clone()).store_to(&self.1.state)
-    }
+    // /// Retrieve the current data from the DB and update this component if needed
+    // pub fn refresh(self) -> Suspension {
+    //     self.0.select((*self.1.id).clone()).store_to(&self.1.state)
+    // }
 
-    /// Retrieve the current data from the DB and update this component or drop it if the record no longer exists
-    pub fn refresh_or_drop(self) {
-        self.0
-            .select((*self.1.id).clone())
-            .store_or_drop(&self.1.state)
-    }
+    // /// Retrieve the current data from the DB and update this component or drop it if the record no longer exists
+    // pub fn refresh_or_drop(self) -> Suspension {
+    //     self.0
+    //         .select((*self.1.id).clone())
+    //         .store_or_drop(&self.1.state)
+    // }
 }
 
 pub struct SurrealSelect<C: Connection, R: DeserializeOwned>(Select<'static, C, R>);
@@ -160,38 +162,48 @@ where
     Client: Connection,
     D: Clone + DeserializeOwned + Send + Sync + 'static,
 {
-    pub fn handle<F: 'static + FnOnce(Result<D>) -> ()>(self, f: F) {
-        wasm_bindgen_futures::spawn_local(async move { f(self.0.await) })
+    pub fn handle<F: 'static + FnOnce(Result<D>) -> ()>(self, f: F) -> Suspension {
+        Suspension::from_future(async move { f(self.0.await) })
     }
 
-    pub fn then<F: 'static + FnOnce(D) -> ()>(self, f: F) {
-        wasm_bindgen_futures::spawn_local(async move {
+    pub fn then<F: 'static + FnOnce(D) -> ()>(self, f: F) -> Suspension {
+        Suspension::from_future(async move {
             self.0.await.ok().map(f);
         })
     }
 
-    pub fn store_to(self, state: &UseStateHandle<Option<D>>) {
+    pub fn store_to(self, state: &UseStateHandle<Option<D>>) -> Suspension {
         let state = state.clone();
-        wasm_bindgen_futures::spawn_local(async move {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(data) => state.set(Some(data)),
                 Err(error) => handle_error(error),
             }
         })
     }
+    
+    // pub fn store_to_query_state(self, state: &QueryState<D>) -> Suspension {
+    //     let state = state.clone();
+    //     Suspension::from_future(async move {
+    //         match self.0.await {
+    //             Ok(data) => state.set(Ok(data)),
+    //             Err(error) => handle_error(error),
+    //         }
+    //     })
+    // }
 
-    pub fn store_or_drop(self, state: &UseStateHandle<Option<D>>) {
+    pub fn store_or_drop(self, state: &UseStateHandle<Option<D>>) -> Suspension {
         let state = state.clone();
-        wasm_bindgen_futures::spawn_local(async move {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(data) => state.set(Some(data)),
-                Err(error) => handle_error(error),
+                Err(_) => state.set(None),
             }
         })
     }
 
-    pub fn append_to(self, result_list: QueryState<D>) {
-        wasm_bindgen_futures::spawn_local(async move {
+    pub fn append_to(self, result_list: QueryState<D>) -> Suspension {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(data) => result_list.append(data),
                 Err(error) => handle_error(error),
@@ -203,8 +215,8 @@ where
 pub struct SurrealQuery<C: Connection>(Query<'static, C>);
 
 impl<C: Connection> SurrealQuery<C> {
-    pub fn run(self) {
-        wasm_bindgen_futures::spawn_local(async move {
+    pub fn run(self) -> Suspension {
+        Suspension::from_future(async move {
             let _ = self.0.await;
         })
     }
@@ -219,7 +231,7 @@ impl<C: Connection> SurrealQuery<C> {
         self
     }
 
-    pub fn store_to<R: 'static + DeserializeOwned>(self, state: UseStateHandle<Option<Vec<R>>>) {
+    pub fn store_to<R: 'static + DeserializeOwned>(self, state: UseStateHandle<Option<Vec<R>>>) -> Suspension {
         self.store_index(state, 0)
     }
 
@@ -227,8 +239,8 @@ impl<C: Connection> SurrealQuery<C> {
         self,
         state: UseStateHandle<Option<Vec<R>>>,
         index: usize,
-    ) {
-        wasm_bindgen_futures::spawn_local(async move {
+    ) -> Suspension {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(mut response) => match response.take(index) {
                     Ok(data) => state.set(Some(data)),
@@ -242,8 +254,8 @@ impl<C: Connection> SurrealQuery<C> {
     pub fn store_multiple<R: 'static + DeserializeOwned>(
         self,
         states: Vec<(usize, UseStateHandle<Vec<R>>)>,
-    ) {
-        wasm_bindgen_futures::spawn_local(async move {
+    ) -> Suspension {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(mut response) => {
                     for (index, state) in states {
@@ -258,8 +270,8 @@ impl<C: Connection> SurrealQuery<C> {
         })
     }
 
-    pub fn store_response<R: 'static + DeserializeOwned>(self, state: UseStateHandle<Response>) {
-        wasm_bindgen_futures::spawn_local(async move {
+    pub fn store_response<R: 'static + DeserializeOwned>(self, state: UseStateHandle<Response>) -> Suspension {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(response) => state.set(response),
                 Err(error) => handle_error(error),
@@ -267,8 +279,8 @@ impl<C: Connection> SurrealQuery<C> {
         })
     }
 
-    pub fn then<F: 'static + FnOnce(Response) -> ()>(self, f: F) {
-        wasm_bindgen_futures::spawn_local(async move {
+    pub fn then<F: 'static + FnOnce(Response) -> ()>(self, f: F) -> Suspension {
+        Suspension::from_future(async move {
             self.0.await.ok().map(f);
         })
     }
@@ -286,19 +298,19 @@ where
     D: 'static + Serialize + Send + Sync,
     R: 'static + Clone + DeserializeOwned + Serialize + Send + Sync,
 {
-    pub fn handle<F: 'static + FnOnce(Result<R>) -> ()>(self, f: F) {
-        wasm_bindgen_futures::spawn_local(async move { f(self.0.await) })
+    pub fn handle<F: 'static + FnOnce(Result<R>) -> ()>(self, f: F) -> Suspension {
+        Suspension::from_future(async move { f(self.0.await) })
     }
 
-    pub fn then<F: 'static + FnOnce(R) -> ()>(self, f: F) {
-        wasm_bindgen_futures::spawn_local(async move {
+    pub fn then<F: 'static + FnOnce(R) -> ()>(self, f: F) -> Suspension {
+        Suspension::from_future(async move {
             self.0.await.ok().map(f);
         })
     }
 
-    pub fn store_to(self, state: &UseStateHandle<Option<R>>) {
+    pub fn store_to(self, state: &UseStateHandle<Option<R>>) -> Suspension {
         let state = state.clone();
-        wasm_bindgen_futures::spawn_local(async move {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(data) => state.set(Some(data)),
                 Err(error) => handle_error(error),
@@ -306,9 +318,9 @@ where
         })
     }
 
-    pub fn store_or_drop(self, state: &UseStateHandle<Option<R>>) {
+    pub fn store_or_drop(self, state: &UseStateHandle<Option<R>>) -> Suspension {
         let state = state.clone();
-        wasm_bindgen_futures::spawn_local(async move {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(data) => state.set(Some(data)),
                 Err(error) => handle_error(error),
@@ -316,8 +328,8 @@ where
         })
     }
 
-    pub fn append_to(self, result_list: QueryState<R>) {
-        wasm_bindgen_futures::spawn_local(async move {
+    pub fn append_to(self, result_list: QueryState<R>) -> Suspension {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(data) => result_list.append(data),
                 Err(error) => handle_error(error),
@@ -325,8 +337,8 @@ where
         })
     }
 
-    pub fn execute(self) {
-        wasm_bindgen_futures::spawn_local(async move {
+    pub fn execute(self) -> Suspension {
+        Suspension::from_future(async move {
             match self.0.await {
                 Ok(_) => (),
                 Err(error) => handle_error(error),
