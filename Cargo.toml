@@ -20,4 +20,3 @@ web-sys = "0.3.60"
 surrealdb = { git="https://github.com/Ichmed/surrealdb.git", default-features = false, features=["protocol-ws"] }
 surreal_macros = {path = "surreal_macros"}
 serde_json = "1.0.91"
-trice = {git="https://github.com/surrealdb/trice.git"}

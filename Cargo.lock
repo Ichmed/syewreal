@@ -1680,7 +1680,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",
- "trice 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trice",
  "url",
  "uuid",
  "wasm-bindgen-futures",
@@ -1705,7 +1705,6 @@ dependencies = [
  "serde_json",
  "surreal_macros",
  "surrealdb",
- "trice 0.2.0 (git+https://github.com/surrealdb/trice.git)",
  "url",
  "wasm-bindgen-futures",
  "web-sys",
@@ -1870,16 +1869,6 @@ name = "trice"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fd6accd04d9bcc587c77f2df66cddaba0d4247dcdf9127c74e3c7a461568132"
-dependencies = [
- "js-sys",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "trice"
-version = "0.2.0"
-source = "git+https://github.com/surrealdb/trice.git#7bdbde3e897355fde67279aa8f87283379dbe955"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
