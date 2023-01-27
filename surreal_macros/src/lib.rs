@@ -134,7 +134,7 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                 #[prop_or_default]
                 parameters: syewreal::props::selector::Parameters,
                 #[prop_or_default]
-                filter: Option<yew::Callback<#remote_name, bool>>,
+                filter: Option<yew::Callback<#name, bool>>,
             }
 
             #[derive(Clone, yew::Properties, PartialEq)]
@@ -143,7 +143,7 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                 #[prop_or_default]
                 parameters: syewreal::props::selector::Parameters,
                 #[prop_or_default]
-                filter: Option<yew::Callback<#remote_name, bool>>,
+                filter: Option<yew::Callback<#name, bool>>,
                 state: syewreal::hooks::QueryState<#remote_name>,
             }
 
@@ -184,7 +184,7 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
 
             #id_getter
             
-            impl syewreal::props::surreal_props::PropsNoState<#remote_name, #local_with_state_name> for #local_name {
+            impl syewreal::props::surreal_props::PropsNoState<#name, #remote_name, #local_with_state_name> for #local_name {
                 fn with_state(&self, state: syewreal::hooks::QueryState<#remote_name>) -> #local_with_state_name {
                     #local_with_state_name {
                         #(#local_idents : self.#local_idents.clone(),)*
@@ -199,7 +199,7 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                 }
             }
             
-            impl syewreal::props::surreal_props::PropsWithState<#remote_name> for #local_with_state_name {
+            impl syewreal::props::surreal_props::PropsWithState<#name, #remote_name> for #local_with_state_name {
                 fn get_state(&self) -> syewreal::hooks::QueryState<#remote_name> {
                     self.state.clone()
                 }
@@ -208,7 +208,7 @@ pub fn derive_surreal_props(input: TokenStream) -> TokenStream {
                     self.parameters.clone()
                 }
 
-                fn get_filter(&self) -> Option<yew::Callback<#remote_name, bool>> {
+                fn get_filter(&self) -> Option<yew::Callback<#name, bool>> {
                     self.filter.clone()
                 }
             }

@@ -98,7 +98,7 @@ fn home(_: &()) -> Html {
 
     let show_done = use_state(|| true);
     
-    let filter = use_callback(|s: ToDoItemPropsRemote, show_done| {**show_done || !s.done}, show_done.clone());
+    let filter = use_callback(|s: ToDoItemProps, show_done| {**show_done || !s.done}, show_done.clone());
     
     let show_done_handle = {
         let state = show_done.clone();
