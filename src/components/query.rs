@@ -70,7 +70,6 @@ where
                 .map(|(index, remote_props)| (index, Inner::Properties::construct(remote_props.clone(), local_props.clone())))
                 .filter(|(_, props)| local_props.get_filter().as_ref().map(|x| x.emit(props.clone())).unwrap_or(true))
                 .map(|(index, props)| {
-
                     let context = SurrealSelfRef {
                         state: state.clone(),
                         index,

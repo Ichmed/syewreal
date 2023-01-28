@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use syewreal::{
     components::QueryWithState,
     components::SurrealContext,
-    hooks::{use_query_state, use_self_ref, use_surreal, use_surreal_login},
+    hooks::{use_update_callback, use_query_state, use_surreal, use_surreal_login},
     props::id::ID,
     Client, Login, SurrealProps,
     props::{children::StaticChild, id::HasID}
@@ -38,22 +38,19 @@ impl HasID for Img {
 
 #[function_component(ToDoItem)]
 fn todo_item(props: &ToDoItemProps) -> Html {
-    let sur = use_surreal();
-    let self_ref = use_self_ref();
-    
     let onclick = {
         let props = props.clone();
-        use_callback(
-            move |event: MouseEvent, ()| {
-                sur.update(&self_ref).with(ToDoItemProps {
+
+        use_update_callback(
+            move |event: MouseEvent, _| {
+                ToDoItemProps {
                     done: event
                         .target_dyn_into::<HtmlInputElement>()
                         .unwrap()
                         .checked(),
                     ..props.clone()
-                });
-            },
-            (),
+                }
+            }, ()
         )
     };
 

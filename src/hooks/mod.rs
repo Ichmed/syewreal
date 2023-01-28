@@ -1,14 +1,10 @@
 use serde::{de::DeserializeOwned, ser::Serialize};
 use surrealdb::engine::remote::ws::{Client, Ws};
-use surrealdb::method::Query;
 use surrealdb::opt::auth::{Credentials, Signin};
-use surrealdb::opt::IntoQuery;
-use surrealdb::sql::statements::SelectStatement;
-use surrealdb::{Connection, Surreal};
+use surrealdb::Surreal;
 
-use yew::suspense::{Suspension, SuspensionResult};
-use yew::use_context;
-use yew::{hook, use_effect_with_deps, use_state, UseStateHandle};
+use yew::{hook,use_state, use_effect_with_deps};
+use yew::{use_callback, Callback};
 
 mod use_query_state;
 mod use_self_ref;
@@ -19,6 +15,8 @@ pub use use_self_ref::*;
 pub use use_surreal::*;
 
 use crate::logging::handle_error;
+use crate::SurrealProps;
+use crate::props::id::HasID;
 
 #[hook]
 pub fn use_surreal_login<T>(
@@ -39,8 +37,6 @@ where
                 match client.connect::<Ws>(url).with_capacity(100000).await {
                     surrealdb::Result::Ok(_) => match client.signin(login).await {
                         surrealdb::Result::Ok(_) => {
-                            // TMP for development don't log in as root please
-                            // client.use_ns("test").use_db("test").await;
                             ready_clone.set(true);
                         }
                         Err(error) => handle_error(error),
@@ -55,76 +51,27 @@ where
     SurrealToken { client, ready }
 }
 
-struct State<T>(bool, Option<Vec<T>>);
-
-async fn fetch_select<T, C: std::fmt::Debug>(
-    target: UseStateHandle<State<T>>,
-    query: Query<'static, C>,
-) where
-    T: DeserializeOwned,
-    C: 'static + Connection,
-{
-    match query.await {
-        Ok(mut r) => {
-            let list: surrealdb::Result<Vec<T>> = r.take(0);
-            match list {
-                Ok(result) => {
-                    target.set(State(true, Some(result)));
-                }
-                Err(error) => {
-                    format_error(error);
-                }
-            }
-        }
-        Err(error) => format_error(error),
-    }
-}
-
+/// Updates the local and remote data of this component with the Properties returned by the closure
 #[hook]
-pub fn use_surreal_select<T>(
-    selector: SelectStatement,
-    parameters: Vec<(String, String)>,
-) -> SuspensionResult<Vec<T>>
+pub fn use_update_callback<Props, IN, D, F>(
+    f: F,
+    deps: D,
+) -> Callback<IN>
 where
-    T: 'static + Send + Sync + DeserializeOwned + Serialize + Clone,
+    Props: SurrealProps + HasID + PartialEq + Clone + 'static,
+    <Props as SurrealProps>::Remote: PartialEq + Clone + Send + Sync + Serialize + DeserializeOwned,
+    SurrealSelfRef<Props>: Clone,
+    IN: 'static,
+    F: Fn(IN, &D) -> Props + 'static,
+    D: PartialEq + Clone + 'static,
+    IN: 'hook,
+    F: 'hook,
+    D: 'hook,
 {
-    let state = use_state(|| State(false, None));
-    let state_clone = state.clone();
-
-    use_effect_with_deps(
-        move |_| state_clone.set(State(true, None)),
-        (selector.clone(), parameters.clone()),
-    );
-
-    let token = match use_context::<SurrealToken>() {
-        Some(token) => token,
-        None => {
-            web_sys::console::error_1(
-                &"Surreal Components must be wrappen <SurrealContext/>".into(),
-            );
-            return Err(Suspension::new().0);
-        }
-    };
-
-    match *state {
-        State(false, _) => Ok(vec![]),
-        State(true, Some(ref result)) => Ok(result.to_vec()),
-        State(true, None) => {
-            let client = token.client;
-
-            let select_query = selector
-                .into_query()
-                .expect("Statement can always be turned into queries");
-
-            let mut q = client.query(select_query);
-            for param in parameters {
-                q = q.bind(param);
-            }
-            Err(Suspension::from_future(fetch_select(state, q)))
-        }
-    }
-}
-
-fn format_error<Error: core::fmt::Debug>(error: Error) {
-    web_sys::console::error_1(&format!("Error \"{:?}\"\nwhile performing query", error,).into());
+    let sur = use_surreal();
+    let r = use_self_ref::<Props>();
+    use_callback(move |inp, (r, deps)| {
+        let data = f(inp, deps);
+        sur.update(r).with(data);
+    }, (r, deps))
 }

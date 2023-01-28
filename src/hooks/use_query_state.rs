@@ -125,6 +125,7 @@ where
             new.push(data);
         }
         new.extend_from_slice(&existing[index+1..]);
+        self.state.set(Ok(new));
     }
 
     pub fn get_selector(&self) -> Selector {
