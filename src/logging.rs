@@ -32,27 +32,32 @@ pub fn panic_error(error: impl Error) -> ! {
     panic!("fatal error: {}", error.to_string());
 }
 
-pub enum Direction {
-    Send,
+pub enum Operation {
+    Update,
     Receive
 }
 
 
 #[cfg(feature = "log_traffic")]
 /// prints an object to the JS console if the `log_traffic` feature is enabled
-pub fn print_traffic(direction: Direction, obj: &impl Serialize) {
-    let obj = serde_json::to_string(&obj);
-    let direction = match direction {
-        Direction::Send =>    "Sent    ",
-        Direction::Receive => "Received"
+pub fn print_traffic(direction: Operation, obj: &impl Serialize) {
+    use js_sys::JSON::parse;
+
+    let obj = match parse(&serde_json::to_string(&obj).unwrap().as_str()) {
+        Ok(value) => value,
+        Err(value) => value
     };
-    web_sys::console::log_1(&format!("{} {:?}", direction, obj).into());
+    let direction = match direction {
+        Operation::Update => "Sent Update",
+        Operation::Receive => "Received"
+    };
+    web_sys::console::log_2(&direction.into(), &obj);
 
     
 }
 #[cfg(not(feature = "log_traffic"))]
 #[inline]
 /// prints an object to the JS console if the `log_traffic` feature is enabled
-pub fn print_traffic(_direction: Direction, _obj: &impl Serialize) {
+pub fn print_traffic(_direction: Operation, _obj: &impl Serialize) {
     ()
 }

@@ -115,7 +115,7 @@ where
 
             query.what = Values(vec![Value::Thing(id.clone())]);
 
-            logging::print_traffic(logging::Direction::Send, &data.get_remote());
+            logging::print_traffic(logging::Operation::Update, &data.get_remote());
 
             Suspension::from_future(async move {
                 match self
@@ -129,7 +129,7 @@ where
                 {
                     Ok(mut data) => match data.take::<Option<R::Remote>>(1) {
                         Ok(data) => {
-                            logging::print_traffic(logging::Direction::Receive, &data);
+                            logging::print_traffic(logging::Operation::Receive, &data);
                             self.1.set(data)
                         },
                         Err(error) => handle_error(error),
