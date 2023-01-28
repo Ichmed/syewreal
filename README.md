@@ -102,6 +102,8 @@ use_surreal().create(
     "item".to_owned(),
     ToDoItemPropsRemote {
         done: false,
+        // Note how having the type of id be Option<ID> 
+        // enables you to delegate id creation to the DB
         id: None,
         text: None,
         title: "Test".into(),
@@ -111,6 +113,8 @@ use_surreal().create(
 ```
 
 ### Self Refs
-The `use_surreal().update()` method takes a `SurrealSelfRef` as its argument, this cn be obtained from inside a component by using the hook `use_self_ref()`. 
+The `use_surreal().update()` method takes a `SurrealSelfRef` as its argument, this can be obtained from inside a component by using the hook `use_self_ref()`.
 
 When the update is executed the data returned from the database will be used to replace the properties of the component iff the new data still matches the original selector, otherwise the data is dropped from local storage.
+
+**Note:** It is highly recomended to use the `use_update_callback` hook when creating self-updating components.
