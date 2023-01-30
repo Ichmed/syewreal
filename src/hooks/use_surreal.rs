@@ -12,6 +12,7 @@ use surrealdb::{
     Connection, Response, Result, Surreal,
 };
 use yew::{hook, use_context, UseStateHandle, suspense::Suspension};
+use async_trait::async_trait;
 
 use crate::{props::id::HasID, props::surreal_props::SurrealProps, logging::{handle_error, self}};
 
@@ -142,73 +143,58 @@ where
         }
     }
 
-    // /// Retrieve the current data from the DB and update this component if needed
-    // pub fn refresh(self) -> Suspension {
-    //     self.0.select((*self.1.id).clone()).store_to(&self.1.state)
-    // }
+    /// Retrieve the current data from the DB and update this component if needed
+    pub fn refresh(self) -> Suspension {
+        Suspension::from_future(async move {
+            match self.0.select((*self.1.id).clone()).resolve().await {
+                Ok(Some(data)) => self.1.set(Some(data)),
+                Ok(_) => (),
+                Err(error) => handle_error(error),
+            }}
+        )
+    }
 
-    // /// Retrieve the current data from the DB and update this component or drop it if the record no longer exists
-    // pub fn refresh_or_drop(self) -> Suspension {
-    //     self.0
-    //         .select((*self.1.id).clone())
-    //         .store_or_drop(&self.1.state)
-    // }
+    /// Retrieve the current data from the DB and update this component or drop it if the record no longer exists
+    pub fn refresh_or_drop(self) -> Suspension {
+        Suspension::from_future(async move {
+            match self.0.select((*self.1.id).clone()).resolve().await {
+                Ok(data) => self.1.set(data),
+                Err(error) => handle_error(error),
+            }}
+        )
+    }
 }
 
 pub struct SurrealSelect<C: Connection, R: DeserializeOwned>(Select<'static, C, R>);
 
-impl<Client, D> SurrealSelect<Client, Option<D>>
+#[async_trait]
+impl<Client, D> Resolve for SurrealSelect<Client, Option<D>>
 where
     Client: Connection,
     D: Clone + DeserializeOwned + Send + Sync + 'static,
 {
-    pub fn handle<F: 'static + FnOnce(Result<D>) -> ()>(self, f: F) -> Suspension {
-        Suspension::from_future(async move { f(self.0.await) })
+    type Target = D;
+    async fn resolve(self) -> Result<Self::Target> {
+        self.0.await
     }
+}
 
-    pub fn then<F: 'static + FnOnce(D) -> ()>(self, f: F) -> Suspension {
-        Suspension::from_future(async move {
-            self.0.await.ok().map(f);
-        })
-    }
+pub struct SurrealCreate<
+    C: Connection,
+    D: Serialize + Send + Sync,
+    R: DeserializeOwned + Serialize + Send + Sync,
+>(Content<'static, C, D, R>);
 
-    pub fn store_to(self, state: &UseStateHandle<Option<D>>) -> Suspension {
-        let state = state.clone();
-        Suspension::from_future(async move {
-            match self.0.await {
-                Ok(data) => state.set(Some(data)),
-                Err(error) => handle_error(error),
-            }
-        })
-    }
-    
-    // pub fn store_to_query_state(self, state: &QueryState<D>) -> Suspension {
-    //     let state = state.clone();
-    //     Suspension::from_future(async move {
-    //         match self.0.await {
-    //             Ok(data) => state.set(Ok(data)),
-    //             Err(error) => handle_error(error),
-    //         }
-    //     })
-    // }
-
-    pub fn store_or_drop(self, state: &UseStateHandle<Option<D>>) -> Suspension {
-        let state = state.clone();
-        Suspension::from_future(async move {
-            match self.0.await {
-                Ok(data) => state.set(Some(data)),
-                Err(_) => state.set(None),
-            }
-        })
-    }
-
-    pub fn append_to(self, result_list: QueryState<D>) -> Suspension {
-        Suspension::from_future(async move {
-            match self.0.await {
-                Ok(data) => result_list.append(data),
-                Err(error) => handle_error(error),
-            }
-        })
+#[async_trait]
+impl<C, D, R> Resolve for SurrealCreate<C, D, R>
+where
+    C: Connection,
+    D: 'static + Serialize + Send + Sync,
+    R: 'static + Clone + DeserializeOwned + Serialize + Send + Sync,
+{
+    type Target = R;
+    async fn resolve(self) -> Result<Self::Target> {
+        self.0.await
     }
 }
 
@@ -286,60 +272,53 @@ impl<C: Connection> SurrealQuery<C> {
     }
 }
 
-pub struct SurrealCreate<
-    C: Connection,
-    D: Serialize + Send + Sync,
-    R: DeserializeOwned + Serialize + Send + Sync,
->(Content<'static, C, D, R>);
-
-impl<C, D, R> SurrealCreate<C, D, R>
-where
-    C: Connection,
-    D: 'static + Serialize + Send + Sync,
-    R: 'static + Clone + DeserializeOwned + Serialize + Send + Sync,
-{
-    pub fn handle<F: 'static + FnOnce(Result<R>) -> ()>(self, f: F) -> Suspension {
-        Suspension::from_future(async move { f(self.0.await) })
+#[async_trait]
+trait Resolve: Sized + 'static {
+    type Target: Clone;
+    async fn resolve(self) -> Result<Self::Target>;
+    
+    fn handle<F: 'static + FnOnce(Result<Self::Target>) -> ()>(self, f: F) -> Suspension {
+        Suspension::from_future(async move { f(self.resolve().await) })
     }
 
-    pub fn then<F: 'static + FnOnce(R) -> ()>(self, f: F) -> Suspension {
+    fn then<F: 'static + FnOnce(Self::Target) -> ()>(self, f: F) -> Suspension {
         Suspension::from_future(async move {
-            self.0.await.ok().map(f);
+            self.resolve().await.ok().map(f);
         })
     }
 
-    pub fn store_to(self, state: &UseStateHandle<Option<R>>) -> Suspension {
+    fn store_to(self, state: &UseStateHandle<Option<Self::Target>>) -> Suspension {
         let state = state.clone();
         Suspension::from_future(async move {
-            match self.0.await {
+            match self.resolve().await {
                 Ok(data) => state.set(Some(data)),
                 Err(error) => handle_error(error),
             }
         })
     }
 
-    pub fn store_or_drop(self, state: &UseStateHandle<Option<R>>) -> Suspension {
+    fn store_or_drop(self, state: &UseStateHandle<Option<Self::Target>>) -> Suspension {
         let state = state.clone();
         Suspension::from_future(async move {
-            match self.0.await {
+            match self.resolve().await {
                 Ok(data) => state.set(Some(data)),
                 Err(error) => handle_error(error),
             }
         })
     }
 
-    pub fn append_to(self, result_list: QueryState<R>) -> Suspension {
+    fn append_to(self, result_list: QueryState<Self::Target>) -> Suspension {
         Suspension::from_future(async move {
-            match self.0.await {
+            match self.resolve().await {
                 Ok(data) => result_list.append(data),
                 Err(error) => handle_error(error),
             }
         })
     }
 
-    pub fn execute(self) -> Suspension {
+    fn execute(self) -> Suspension {
         Suspension::from_future(async move {
-            match self.0.await {
+            match self.resolve().await {
                 Ok(_) => (),
                 Err(error) => handle_error(error),
             };

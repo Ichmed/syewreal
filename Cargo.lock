@@ -114,6 +114,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a40729d2133846d9ed0ea60a8b9541bccddab49cd30f0715a1da672fe9a2524"
 
 [[package]]
+name = "async-trait"
+version = "0.1.63"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eff18d764974428cf3a9328e23fc5c986f5fbed46e6cd4cdf42544df5d297ec1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "async_io_stream"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1701,6 +1712,7 @@ dependencies = [
 name = "syewreal"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "js-sys",
  "serde",
  "serde_json",
