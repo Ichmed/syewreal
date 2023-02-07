@@ -33,10 +33,11 @@ html! {
     </SurrealContext>
 }
 ```
-`<Query<T>/>` has three parameters
+`<Query<T>/>` has four properties
 - `selector`: Something that can be turned into a `SelectStatement`, this includes `String`s and surreal records (`Thing`s in the surreal source code)
-- `parameters`: a Vec of `(String, String)` touples that will be bound to the query
-- `filter`: a yew callback `Fn(T::Properties) -> bool` used for local filtering.
+- `parameters` (Optional): a Vec of `(String, String)` touples that will be bound to the query
+- `filter` (Optional): a yew callback `Fn(T::Properties) -> bool` used for local filtering.
+- `fallback` (Optional): an `Html` element that will be rendered while the data is being fetched (uses yew Suspension under the hood).
 
 `<Query/>` stores the result of the query in an internally managed state. If you want to manipulat the state or use the same query result in multiple places you will have to use `<QueryWithState/>` in combination with the `use_query_state` hook
 ```rust
@@ -50,7 +51,7 @@ Because the state is externally managed the `<QueryWithState/>` component has no
 ### Properties
 In order for the component `<Inner/>` to be rendered by `<Query/>` `Inner::Properties` needs to derive `SurrealProps` (in addition to `Properties`, `PartialEq` and `Clone`)
 ```rust
-#[derive(SurrealProp, Properties, PartialEq, Clone)]
+#[derive(SurrealProps, Properties, PartialEq, Clone)]
 struct InnerProps {
     #[id] id: Option<ID>,
     name: AttrValue,
@@ -67,7 +68,7 @@ The component's `id` property can be an `ID` or an `Option<ID>`, if you want to 
 ### Local Properties
 To add properties that can be set locally instead of retrieved from the server, mark them as `#[local]`
 ```rust
-#[derive(SurrealProp, Properties, PartialEq, Clone)]
+#[derive(SurrealProps, Properties, PartialEq, Clone)]
 struct InnerProps {
     id: AttrValue,
     name: AttrValue,
@@ -82,6 +83,7 @@ They will need to be set on the Wrapper Component and apply to all `Inner` compo
 
 ### ForeignKeys
 There are two ways to deal with foreign keys:
+
 A) Use a property of type `ForeignKey` (this is just an alias of `ID` but more readable)
 
 B) Use a property of type `StaticChild<T>` where `T` is a deserializable struct. This allows for the data to be retrieved in one go with the `FETCH` keyword but will only write the id of the fetched data to surreal when updated/created
@@ -100,7 +102,7 @@ use_surreal().create(
     ToDoItemPropsRemote {
         done: false,
         // Note how having the type of id be Option<ID> 
-        // enables you to delegate id creation to the DB
+        // enables you to delegate id creation to the Database
         id: None,
         text: None,
         title: "Test".into(),
