@@ -168,7 +168,7 @@ where
 pub struct SurrealSelect<C: Connection, R: DeserializeOwned>(Select<'static, C, R>);
 
 #[async_trait]
-impl<Client, D> Resolve for SurrealSelect<Client, Option<D>>
+impl<Client, D> Fetch for SurrealSelect<Client, Option<D>>
 where
     Client: Connection,
     D: Clone + DeserializeOwned + Send + Sync + 'static,
@@ -186,7 +186,7 @@ pub struct SurrealCreate<
 >(Content<'static, C, D, R>);
 
 #[async_trait]
-impl<C, D, R> Resolve for SurrealCreate<C, D, R>
+impl<C, D, R> Fetch for SurrealCreate<C, D, R>
 where
     C: Connection,
     D: 'static + Serialize + Send + Sync,
@@ -201,7 +201,7 @@ where
 pub struct SurrealQuery<C: Connection>(Query<'static, C>);
 
 impl<C: Connection> SurrealQuery<C> {
-    pub fn run(self) -> Suspension {
+    pub fn execute(self) -> Suspension {
         Suspension::from_future(async move {
             let _ = self.0.await;
         })
@@ -239,7 +239,7 @@ impl<C: Connection> SurrealQuery<C> {
 
     pub fn store_multiple<R: 'static + DeserializeOwned>(
         self,
-        states: Vec<(usize, UseStateHandle<Vec<R>>)>,
+        states: impl IntoIterator<Item=(usize, UseStateHandle<Vec<R>>)> + 'static,
     ) -> Suspension {
         Suspension::from_future(async move {
             match self.0.await {
@@ -273,7 +273,7 @@ impl<C: Connection> SurrealQuery<C> {
 }
 
 #[async_trait]
-trait Resolve: Sized + 'static {
+pub trait Fetch: Sized + 'static {
     type Target: Clone;
     async fn resolve(self) -> Result<Self::Target>;
     
