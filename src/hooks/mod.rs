@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use serde::{de::DeserializeOwned, ser::Serialize};
 use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::opt::auth::{Credentials, Signin};
@@ -18,15 +19,31 @@ use crate::logging::handle_error;
 use crate::SurrealProps;
 use crate::props::id::HasID;
 
+lazy_static!{
+    static ref STATIC_CLIENT: Surreal<Client> = Surreal::<Client>::init();
+}
+
 #[hook]
 pub fn use_surreal_login<T>(
+    url: String,
+    login: impl Credentials<Signin, T> + 'static,
+) -> SurrealToken
+where
+    surrealdb::method::Signin<'static, Client, T>:
+    std::future::IntoFuture<Output = surrealdb::Result<T>>,
+{
+    use_surreal_login_with_client(&*STATIC_CLIENT, url, login)
+}
+
+#[hook]
+pub fn use_surreal_login_with_client<T>(
     client: &'static Surreal<Client>,
     url: String,
     login: impl Credentials<Signin, T> + 'static,
 ) -> SurrealToken
 where
     surrealdb::method::Signin<'static, Client, T>:
-        std::future::IntoFuture<Output = surrealdb::Result<T>>,
+    std::future::IntoFuture<Output = surrealdb::Result<T>>,
 {
     let ready = use_state(|| false);
 

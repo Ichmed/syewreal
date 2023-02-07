@@ -1714,6 +1714,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "js-sys",
+ "lazy_static",
  "serde",
  "serde_json",
  "surreal_macros",

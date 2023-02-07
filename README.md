@@ -1,9 +1,6 @@
 # Usage
 
 ## Create a Connection
-```rust
-static CLIENT: Client = Client::init();
-```
 To connect to a database use the `use_surreal_login` hook. The hook returns a token that has to be used in a `<SurrealContext/>` context provider.
 ```rust
 #[function_component]
@@ -15,7 +12,7 @@ fn MyComponent(props: &P) -> Html{
         namespace: "test"
     };
     
-    let token = use_surreal_login(&CLIENT, "localhost:8000".to_owned(), login);
+    let token = use_surreal_login("localhost:8000".to_owned(), login);
 
     
     html! {

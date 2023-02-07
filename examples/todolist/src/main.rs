@@ -2,15 +2,13 @@ use serde::{Deserialize, Serialize};
 use syewreal::{
     components::QueryWithState,
     components::SurrealContext,
-    hooks::{use_update_callback, use_query_state, use_surreal, use_surreal_login},
+    hooks::{use_update_callback, use_query_state, use_surreal, use_surreal_login, Fetch},
     props::id::ID,
-    Client, Login, SurrealProps,
+    Login, SurrealProps,
     props::{children::StaticChild, id::HasID}
 };
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
-
-static CLIENT: Client = Client::init();
 
 #[derive(SurrealProps, Properties, PartialEq, Clone)]
 struct ToDoItemProps {
@@ -144,7 +142,7 @@ fn App() -> Html {
         username: "Steve",
         password: "hunter2",
     };
-    let token = use_surreal_login(&CLIENT, "localhost:8000".to_owned(), credentials);
+    let token = use_surreal_login("localhost:8000".to_owned(), credentials);
     let fallback = html!(<span>{"Loading..."}</span>);
     html!{
         <SurrealContext {token} {fallback}>
